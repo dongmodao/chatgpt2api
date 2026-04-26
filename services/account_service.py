@@ -478,6 +478,7 @@ class AccountService:
                 token_ref,
                 f"quota={result.get('quota')}",
                 f"restore_at={result.get('restore_at')}",
+                f"email={result.get('email')}",
             )
             return result
         finally:
