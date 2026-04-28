@@ -531,7 +531,7 @@ def stream_image_outputs(
 
 def stream_image_outputs_with_pool(request: ConversationRequest) -> Iterator[ImageOutput]:
     if str(request.model or "").strip() not in IMAGE_MODELS:
-        raise ImageGenerationError("unsupported image model,supported models: " + ", ".join(IMAGE_MODELS))
+        raise ImageGenerationError(f"unsupported image model{request.model},supported models: " + ", ".join(IMAGE_MODELS))
 
     emitted = False
     last_error = ""
