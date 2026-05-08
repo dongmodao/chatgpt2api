@@ -137,7 +137,8 @@ async function buildReferenceImageFromStoredImage(image: StoredImage, fileName: 
   if (!image.url) {
     return null;
   }
-  const file = await fetchImageAsFile(image.url, fileName);
+  const imageUrl = image.url.startsWith("https://") ? image.url : image.url.replace("http://", "https://")
+  const file = await fetchImageAsFile(imageUrl, fileName);
   return {
     referenceImage: {
       name: file.name,
