@@ -283,12 +283,13 @@ export function ImageResults({
                               !["1:1", "16:9", "9:16", "4:3", "3:4"].includes(turn.size) && "sm:aspect-square",
                             )}
                           >
-                            <div className="flex h-full min-h-16 flex-col items-center justify-center gap-1.5 px-2 py-2 text-center text-[11px] leading-4 text-rose-600 sm:gap-3 sm:px-6 sm:py-8 sm:text-sm sm:leading-6">
-                              <span className="line-clamp-2 sm:line-clamp-none">{image.error || "生成失败"}</span>
+                            <div className="flex h-full min-h-16 flex-col items-center justify-center gap-1.5 overflow-auto px-2 py-2 text-center text-[11px] leading-4 text-rose-600 sm:gap-3 sm:px-6 sm:py-8 sm:text-sm sm:leading-6">
+                              <span className="line-clamp-2 sm:line-clamp-none">{image.error || "生成失败"}
+                              </span>
                               <button
                                 type="button"
                                 onClick={() => void onRetryImage(selectedConversation.id, turn.id, image.id)}
-                                className="rounded-full bg-white px-2 py-1 text-[10px] font-medium text-rose-600 shadow-sm transition hover:bg-rose-100 sm:px-3 sm:text-xs"
+                                className="mt-1 shrink-0 rounded-full bg-white px-2 py-1 text-[10px] font-medium text-rose-600 shadow-sm transition hover:bg-rose-100 sm:mt-2 sm:px-3 sm:text-xs"
                               >
                                 重新生成这一张
                               </button>
