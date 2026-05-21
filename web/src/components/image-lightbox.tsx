@@ -50,17 +50,24 @@ type TouchGesture =
 const minScale = 1;
 const maxScale = 4;
 
+type TouchPoints = {
+  readonly [index: number]: {
+    clientX: number;
+    clientY: number;
+  };
+};
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-function getTouchDistance(touches: TouchList) {
+function getTouchDistance(touches: TouchPoints) {
   const first = touches[0];
   const second = touches[1];
   return Math.hypot(first.clientX - second.clientX, first.clientY - second.clientY);
 }
 
-function getTouchCenter(touches: TouchList) {
+function getTouchCenter(touches: TouchPoints) {
   const first = touches[0];
   const second = touches[1];
   return {
@@ -401,6 +408,7 @@ export function ImageLightbox({
                 isGesturing ? "" : "transition-transform duration-150 ease-out",
                 transform.scale > minScale ? "cursor-grab active:cursor-grabbing" : "cursor-zoom-in",
               )}
+              decoding="async"
               style={{
                 transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})`,
               }}

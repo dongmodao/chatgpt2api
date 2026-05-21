@@ -119,6 +119,8 @@ export function ImageComposer({
                     src={image.dataUrl}
                     alt={image.name || `参考图 ${index + 1}`}
                     className="h-full w-full object-cover"
+                    loading="lazy"
+                    decoding="async"
                   />
                 </button>
                 <button
@@ -279,4 +281,3 @@ export function ImageComposer({
     </div>
   );
 }
-

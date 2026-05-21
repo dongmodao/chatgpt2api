@@ -305,7 +305,7 @@ function LogsContent() {
                         setLightboxOpen(true);
                       }}
                     >
-                      <img src={url} alt="" className="h-full w-full object-cover" />
+                      <img src={url} alt="" className="h-full w-full object-cover" loading="lazy" decoding="async" />
                     </button>
                   ))}
                 </div>

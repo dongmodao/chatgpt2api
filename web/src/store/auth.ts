@@ -19,6 +19,9 @@ const authStorage = localforage.createInstance({
   storeName: "auth",
 });
 
+let authKeyCache: string | null | undefined;
+let authSessionCache: StoredAuthSession | null | undefined;
+
 function normalizeSession(value: unknown, fallbackKey = ""): StoredAuthSession | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -47,13 +50,20 @@ export async function getStoredAuthKey() {
   if (typeof window === "undefined") {
     return "";
   }
+  if (authKeyCache !== undefined) {
+    return authKeyCache;
+  }
   const value = await authStorage.getItem<string>(AUTH_KEY_STORAGE_KEY);
-  return String(value || "").trim();
+  authKeyCache = String(value || "").trim();
+  return authKeyCache;
 }
 
 export async function getStoredAuthSession() {
   if (typeof window === "undefined") {
     return null;
+  }
+  if (authSessionCache !== undefined) {
+    return authSessionCache;
   }
 
   const [storedKey, storedSession] = await Promise.all([
@@ -66,12 +76,16 @@ export async function getStoredAuthSession() {
     if (normalizedSession.key !== String(storedKey || "").trim()) {
       await authStorage.setItem(AUTH_KEY_STORAGE_KEY, normalizedSession.key);
     }
+    authKeyCache = normalizedSession.key;
+    authSessionCache = normalizedSession;
     return normalizedSession;
   }
 
   if (String(storedKey || "").trim()) {
     await clearStoredAuthSession();
   }
+  authKeyCache = "";
+  authSessionCache = null;
   return null;
 }
 
@@ -86,6 +100,8 @@ export async function setStoredAuthSession(session: StoredAuthSession) {
     authStorage.setItem(AUTH_KEY_STORAGE_KEY, normalizedSession.key),
     authStorage.setItem(AUTH_SESSION_STORAGE_KEY, normalizedSession),
   ]);
+  authKeyCache = normalizedSession.key;
+  authSessionCache = normalizedSession;
 }
 
 export async function setStoredAuthKey(authKey: string) {
@@ -95,6 +111,8 @@ export async function setStoredAuthKey(authKey: string) {
     return;
   }
   await authStorage.setItem(AUTH_KEY_STORAGE_KEY, normalizedAuthKey);
+  authKeyCache = normalizedAuthKey;
+  authSessionCache = null;
 }
 
 export async function clearStoredAuthSession() {
@@ -105,6 +123,8 @@ export async function clearStoredAuthSession() {
     authStorage.removeItem(AUTH_KEY_STORAGE_KEY),
     authStorage.removeItem(AUTH_SESSION_STORAGE_KEY),
   ]);
+  authKeyCache = "";
+  authSessionCache = null;
 }
 
 export async function clearStoredAuthKey() {

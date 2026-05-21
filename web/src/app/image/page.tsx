@@ -164,7 +164,7 @@ function taskDataToStoredImage(image: StoredImage, task: ImageTask): StoredImage
       ...image,
       taskId: task.id,
       status: "success",
-      b64_json: first.b64_json,
+      b64_json: first.url ? undefined : first.b64_json,
       url: first.url,
       revised_prompt: first.revised_prompt,
       error: undefined,
@@ -566,11 +566,11 @@ function ImagePageContent({ isAdmin }: { isAdmin: boolean }) {
     clearComposerInputs();
   }, [clearComposerInputs]);
 
-  const handleCreateDraft = () => {
+  const handleCreateDraft = useCallback(() => {
     setSelectedConversationId(null);
     resetComposer();
     textareaRef.current?.focus();
-  };
+  }, [resetComposer]);
 
   const handleDeleteConversation = async (id: string) => {
     const nextConversations = conversations.filter((item) => item.id !== id);
@@ -645,8 +645,8 @@ function ImagePageContent({ isAdmin }: { isAdmin: boolean }) {
     }
   };
 
-  const handleRenameConversation = async (id: string, title: string) => {
-    const nextConversations = conversations.map((item) =>
+  const handleRenameConversation = useCallback(async (id: string, title: string) => {
+    const nextConversations = conversationsRef.current.map((item) =>
       item.id === id ? { ...item, title, updatedAt: new Date().toISOString() } : item,
     );
     conversationsRef.current = sortImageConversations(nextConversations);
@@ -657,25 +657,35 @@ function ImagePageContent({ isAdmin }: { isAdmin: boolean }) {
       const message = error instanceof Error ? error.message : "重命名失败";
       toast.error(message);
     }
-  };
+  }, []);
 
-  const openDeleteConversationConfirm = (id: string) => {
+  const openDeleteConversationConfirm = useCallback((id: string) => {
     setIsHistoryOpen(false);
     setDeleteConfirm({ type: "one", id });
-  };
+  }, []);
 
-  const openDeletePromptConfirm = (conversationId: string, turnId: string) => {
+  const openDeletePromptConfirm = useCallback((conversationId: string, turnId: string) => {
     setDeleteConfirm({ type: "prompt", conversationId, turnId });
-  };
+  }, []);
 
-  const openDeleteResultsConfirm = (conversationId: string, turnId: string) => {
+  const openDeleteResultsConfirm = useCallback((conversationId: string, turnId: string) => {
     setDeleteConfirm({ type: "results", conversationId, turnId });
-  };
+  }, []);
 
-  const openClearHistoryConfirm = () => {
+  const openClearHistoryConfirm = useCallback(() => {
     setIsHistoryOpen(false);
     setDeleteConfirm({ type: "all" });
-  };
+  }, []);
+
+  const handleCreateDraftAndCloseHistory = useCallback(() => {
+    handleCreateDraft();
+    setIsHistoryOpen(false);
+  }, [handleCreateDraft]);
+
+  const handleSelectConversationAndCloseHistory = useCallback((id: string) => {
+    setSelectedConversationId(id);
+    setIsHistoryOpen(false);
+  }, []);
 
   const handleConfirmDelete = async () => {
     const target = deleteConfirm;
@@ -1159,15 +1169,9 @@ function ImagePageContent({ isAdmin }: { isAdmin: boolean }) {
                 conversations={conversations}
                 isLoadingHistory={isLoadingHistory}
                 selectedConversationId={selectedConversationId}
-                onCreateDraft={() => {
-                  handleCreateDraft();
-                  setIsHistoryOpen(false);
-                }}
+                onCreateDraft={handleCreateDraftAndCloseHistory}
                 onClearHistory={openClearHistoryConfirm}
-                onSelectConversation={(id) => {
-                  setSelectedConversationId(id);
-                  setIsHistoryOpen(false);
-                }}
+                onSelectConversation={handleSelectConversationAndCloseHistory}
                 onDeleteConversation={openDeleteConversationConfirm}
                 onRenameConversation={handleRenameConversation}
                 formatConversationTime={formatConversationTime}

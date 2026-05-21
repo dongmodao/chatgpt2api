@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Clock3, Download, LoaderCircle, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 
+import { ImageThumbnail } from "@/components/image-thumbnail";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { ImageConversation, ImageTurnStatus, StoredImage, StoredReferenceImage } from "@/store/image-conversations";
@@ -56,7 +57,7 @@ async function downloadStoredImage(image: StoredImage, index: number) {
   URL.revokeObjectURL(url);
 }
 
-export function ImageResults({
+export const ImageResults = memo(function ImageResults({
   selectedConversation,
   onOpenLightbox,
   onContinueEdit,
@@ -68,16 +69,40 @@ export function ImageResults({
   formatConversationTime,
 }: ImageResultsProps) {
   const [imageDimensions, setImageDimensions] = useState<Record<string, string>>({});
+  const pendingDimensionsRef = useRef<Record<string, string>>({});
+  const dimensionRafRef = useRef<number | null>(null);
 
-  const updateImageDimensions = (id: string, width: number, height: number) => {
+  const updateImageDimensions = useCallback((id: string, width: number, height: number) => {
     const dimensions = formatImageDimensions(width, height);
-    setImageDimensions((current) => {
-      if (current[id] === dimensions) {
-        return current;
-      }
-      return { ...current, [id]: dimensions };
+    pendingDimensionsRef.current[id] = dimensions;
+    if (dimensionRafRef.current != null) {
+      return;
+    }
+    dimensionRafRef.current = requestAnimationFrame(() => {
+      dimensionRafRef.current = null;
+      const pending = pendingDimensionsRef.current;
+      pendingDimensionsRef.current = {};
+      setImageDimensions((current) => {
+        let changed = false;
+        const next = { ...current };
+        for (const [imageId, imageDimensions] of Object.entries(pending)) {
+          if (next[imageId] !== imageDimensions) {
+            next[imageId] = imageDimensions;
+            changed = true;
+          }
+        }
+        return changed ? next : current;
+      });
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (dimensionRafRef.current != null) {
+        cancelAnimationFrame(dimensionRafRef.current);
+      }
+    };
+  }, []);
 
   if (!selectedConversation) {
     return (
@@ -179,6 +204,8 @@ export function ImageResults({
                                 src={image.dataUrl}
                                 alt={image.name || `参考图 ${index + 1}`}
                                 className="absolute inset-0 h-full w-full object-cover transition duration-200 group-hover:scale-[1.02]"
+                                loading="lazy"
+                                decoding="async"
                               />
                             </button>
                             <Button
@@ -223,18 +250,36 @@ export function ImageResults({
                               onClick={() => onOpenLightbox(successfulTurnImages, currentIndex)}
                               className="group block aspect-square w-full cursor-zoom-in overflow-hidden rounded-xl sm:aspect-auto"
                             >
-                              <img
-                                src={imageSrc}
-                                alt={`Generated result ${index + 1}`}
-                                className="block h-full w-full object-cover transition duration-200 group-hover:brightness-90 sm:h-auto sm:object-contain"
-                                onLoad={(event) => {
-                                  updateImageDimensions(
-                                    image.id,
-                                    event.currentTarget.naturalWidth,
-                                    event.currentTarget.naturalHeight,
-                                  );
-                                }}
-                              />
+                              {image.b64_json ? (
+                                <img
+                                  src={imageSrc}
+                                  alt={`Generated result ${index + 1}`}
+                                  className="block h-full w-full object-cover transition duration-200 group-hover:brightness-90 sm:h-auto sm:object-contain"
+                                  loading="lazy"
+                                  decoding="async"
+                                  onLoad={(event) => {
+                                    updateImageDimensions(
+                                      image.id,
+                                      event.currentTarget.naturalWidth,
+                                      event.currentTarget.naturalHeight,
+                                    );
+                                  }}
+                                />
+                              ) : (
+                                <ImageThumbnail
+                                  src={imageSrc}
+                                  alt={`Generated result ${index + 1}`}
+                                  className="block h-full w-full sm:h-auto"
+                                  imageClassName="block h-full w-full object-cover transition duration-200 group-hover:brightness-90 sm:h-auto sm:object-contain"
+                                  onLoad={(event) => {
+                                    updateImageDimensions(
+                                      image.id,
+                                      event.currentTarget.naturalWidth,
+                                      event.currentTarget.naturalHeight,
+                                    );
+                                  }}
+                                />
+                              )}
                             </button>
                             <div className="flex flex-col gap-1 px-0.5 py-1 text-[10px] sm:flex-row sm:items-center sm:justify-between sm:gap-2 sm:px-3 sm:py-3 sm:text-xs">
                               <div className="min-w-0 text-stone-500">
@@ -358,7 +403,7 @@ export function ImageResults({
       })}
     </div>
   );
-}
+});
 
 function getTurnStatusLabel(status: ImageTurnStatus) {
   if (status === "queued") {

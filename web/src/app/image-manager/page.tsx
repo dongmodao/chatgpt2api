@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { DateRangeFilter } from "@/components/date-range-filter";
 import { ImageLightbox } from "@/components/image-lightbox";
+import { ImageThumbnail } from "@/components/image-thumbnail";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -86,21 +87,36 @@ function ImageManagerContent() {
   const [deleteMode, setDeleteMode] = useState<"selected" | "filtered" | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const filteredItems = selectedTags.length > 0
-    ? items.filter((item) => selectedTags.every((t) => (item.tags ?? []).includes(t)))
-    : items;
+  const filteredItems = useMemo(
+    () =>
+      selectedTags.length > 0
+        ? items.filter((item) => selectedTags.every((tag) => (item.tags ?? []).includes(tag)))
+        : items,
+    [items, selectedTags],
+  );
 
-  const lightboxImages = filteredItems.map((item) => ({
-    id: item.name,
-    src: item.url,
-    sizeLabel: formatSize(item.size),
-    dimensions: item.width && item.height ? `${item.width} x ${item.height}` : undefined,
-  }));
+  const lightboxImages = useMemo(
+    () =>
+      filteredItems.map((item) => ({
+        id: item.name,
+        src: item.url,
+        sizeLabel: formatSize(item.size),
+        dimensions: item.width && item.height ? `${item.width} x ${item.height}` : undefined,
+      })),
+    [filteredItems],
+  );
   const pageSize = 12;
   const pageCount = Math.max(1, Math.ceil(filteredItems.length / pageSize));
   const safePage = Math.min(page, pageCount);
-  const currentRows = filteredItems.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const currentRows = useMemo(
+    () => filteredItems.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [filteredItems, safePage],
+  );
   const selectedSet = useMemo(() => new Set(selectedPaths), [selectedPaths]);
+  const imageIndexByUrl = useMemo(
+    () => new Map(filteredItems.map((item, index) => [item.url, index])),
+    [filteredItems],
+  );
   const selectedCount = deleteMode === "filtered" ? items.length : selectedPaths.length;
   const currentPageSelected = currentRows.length > 0 && currentRows.every((item) => selectedSet.has(imageKey(item)));
   const allSelected = filteredItems.length > 0 && filteredItems.every((item) => selectedSet.has(imageKey(item)));
@@ -373,7 +389,7 @@ function ImageManagerContent() {
           </div>
           <div className="grid gap-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {currentRows.map((item) => {
-              const imageIndex = filteredItems.findIndex((row) => row.url === item.url);
+              const imageIndex = imageIndexByUrl.get(item.url) ?? 0;
               const storage = storageBadge(item);
               return (
               <div key={item.rel} className="group border-r border-b border-stone-100 p-4 transition hover:bg-stone-50">
@@ -386,15 +402,12 @@ function ImageManagerContent() {
                       setLightboxOpen(true);
                     }}
                   >
-                    <img
-                      src={item.thumbnail_url || item.url}
+                    <ImageThumbnail
+                      src={item.url}
+                      thumbnailSrc={item.thumbnail_url}
                       alt={item.name}
-                      className="h-full w-full object-cover transition group-hover:scale-[1.02]"
-                      onError={(event) => {
-                        if (event.currentTarget.src !== item.url) {
-                          event.currentTarget.src = item.url;
-                        }
-                      }}
+                      className="h-full w-full"
+                      imageClassName="h-full w-full object-cover transition group-hover:scale-[1.02]"
                     />
                     <span className="absolute right-2 bottom-2 rounded-full bg-black/50 p-2 text-white opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100">
                       <Maximize2 className="size-4" />
@@ -551,11 +564,11 @@ function ImageManagerContent() {
           </p>
           {deleteTarget ? (
             <div className="flex items-center gap-3 overflow-hidden rounded-xl border border-stone-200 bg-stone-50 p-3">
-              <img
-                src={deleteTarget.thumbnail_url || deleteTarget.url}
+              <ImageThumbnail
+                src={deleteTarget.url}
+                thumbnailSrc={deleteTarget.thumbnail_url}
                 alt=""
                 className="size-16 shrink-0 rounded-lg object-cover"
-                onError={(e) => { if (e.currentTarget.src !== deleteTarget.url) e.currentTarget.src = deleteTarget.url; }}
               />
               <div className="min-w-0 overflow-hidden text-xs text-stone-500">
                 <div className="truncate font-medium text-stone-700">{deleteTarget.name}</div>

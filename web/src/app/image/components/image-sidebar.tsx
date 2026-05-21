@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { LoaderCircle, MessageSquarePlus, Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ type ImageSidebarProps = {
   hideActionButtons?: boolean;
 };
 
-export function ImageSidebar({
+export const ImageSidebar = memo(function ImageSidebar({
   conversations,
   isLoadingHistory,
   selectedConversationId,
@@ -173,4 +173,4 @@ export function ImageSidebar({
       </div>
     </aside>
   );
-}
+});
