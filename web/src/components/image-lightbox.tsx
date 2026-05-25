@@ -27,6 +27,10 @@ type ImageTransform = {
   y: number;
 };
 
+type TouchPoints = {
+  [index: number]: React.Touch;
+};
+
 type TouchGesture =
   | {
       type: "swipe";
