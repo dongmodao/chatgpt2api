@@ -578,6 +578,99 @@ class DDGMailProvider(BaseMailProvider):
         self.session.close()
 
 
+class TmailDdgProvider(BaseMailProvider):
+    name = "tmail_ddg"
+
+    def __init__(self, entry: dict, conf: dict):
+        super().__init__(conf, str(entry.get("provider_ref") or ""))
+        self.ddg_token = str(entry.get("ddg_token") or "").strip()
+        self.tmail_auth = str(entry.get("tmail_auth") or "").strip()
+        self.tmail_backend = str(entry.get("tmail_backend") or "").strip().rstrip("/")
+        self.session = _create_session(conf)
+
+    def _ddg_request(self, method: str, path: str, payload: dict | None = None) -> dict:
+        if not self.ddg_token:
+            raise RuntimeError("TmailDdgProvider 缺少 ddg_token")
+        resp = self.session.request(
+            method.upper(),
+            f"https://quack.duckduckgo.com{path}",
+            headers={
+                "Authorization": f"Bearer {self.ddg_token}",
+                "Content-Type": "application/json",
+                "User-Agent": self.conf["user_agent"],
+            },
+            json=payload,
+            timeout=self.conf["request_timeout"],
+            verify=False,
+        )
+        if resp.status_code not in (200, 201):
+            raise RuntimeError(f"TmailDdgProvider DDG请求失败: {method} {path}, HTTP {resp.status_code}, body={resp.text[:300]}")
+        return resp.json()
+
+    def _tmail_request(self, method: str, path: str, params: dict | None = None) -> Any:
+        if not self.tmail_backend:
+            raise RuntimeError("TmailDdgProvider 缺少 tmail_backend")
+        if not self.tmail_auth:
+            raise RuntimeError("TmailDdgProvider 缺少 tmail_auth")
+        resp = self.session.request(
+            method.upper(),
+            f"{self.tmail_backend}{path}",
+            params=params,
+            headers={
+                "Authorization": f"Bearer {self.tmail_auth}",
+                "Content-Type": "application/json",
+                "User-Agent": self.conf["user_agent"],
+            },
+            timeout=self.conf["request_timeout"],
+            verify=False,
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(f"TmailDdgProvider Tmail请求失败: {method} {path}, HTTP {resp.status_code}, body={resp.text[:300]}")
+        return resp.json()
+
+    def create_mailbox(self, username: str | None = None) -> dict[str, Any]:
+        ddg_data = self._ddg_request("POST", "/api/email/addresses", payload={})
+        ddg_address_part = str(ddg_data.get("address") or "").strip()
+        if not ddg_address_part:
+            raise RuntimeError("TmailDdgProvider DDG API 返回无 address 字段")
+        address = f"{ddg_address_part}@duck.com"
+        return {"provider": self.name, "provider_ref": self.provider_ref, "address": address, "token": self.ddg_token}
+
+    def fetch_latest_message(self, mailbox: dict[str, Any]) -> dict[str, Any] | None:
+        address = str(mailbox.get("address") or "").strip()
+        if not address:
+            raise RuntimeError("TmailDdgProvider 缺少 address")
+        data = self._tmail_request("GET", "/api/mails", params={"address": address, "limit": 10, "offset": 0})
+        raw_items = data if isinstance(data, list) else data.get("results") or data.get("data") or [] if isinstance(data, dict) else []
+        messages = [item for item in raw_items if isinstance(item, dict)]
+        if not messages:
+            return None
+        item = messages[0]
+        text_content, html_content = _extract_content(item)
+        raw = str(item.get("raw") or "")
+        if raw and (not text_content or not html_content):
+            text_content = text_content or raw
+            html_content = html_content or raw
+        sender = item.get("from") or item.get("sender") or ""
+        subject = str(item.get("subject") or "")
+        if isinstance(sender, dict):
+            sender = sender.get("address") or sender.get("email") or sender.get("name") or ""
+        return {
+            "provider": self.name,
+            "mailbox": address,
+            "message_id": str(item.get("id") or item.get("messageId") or item.get("_id") or ""),
+            "subject": subject,
+            "sender": str(sender),
+            "text_content": text_content,
+            "html_content": html_content,
+            "received_at": _parse_received_at(item.get("date") or item.get("createdAt") or item.get("created_at") or item.get("receivedAt") or item.get("timestamp")),
+            "raw": item,
+        }
+
+    def close(self) -> None:
+        self.session.close()
+
+
 class CloudMailGenProvider(BaseMailProvider):
     name = "cloudmail_gen"
 
@@ -1406,6 +1499,8 @@ def _create_provider(mail_config: dict, provider: str = "", provider_ref: str = 
         return CloudflareTempMailProvider(entry, conf)
     if entry["type"] == "ddg_mail":
         return DDGMailProvider(entry, conf)
+    if entry["type"] == "tmail_ddg":
+        return TmailDdgProvider(entry, conf)
     if entry["type"] == "tempmail_lol":
         return TempMailLolProvider(entry, conf)
     if entry["type"] == "duckmail":

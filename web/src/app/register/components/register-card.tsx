@@ -57,6 +57,7 @@ export function RegisterCard() {
       ...(type === "gptmail" ? { api_key: "", default_domain: "" } : {}),
       ...(type === "yyds_mail" ? { api_base: "https://maliapi.215.im/v1", api_key: "", domain: [], subdomain: "", wildcard: false } : {}),
       ...(type === "ddg_mail" ? { ddg_token: "", cf_inbox_jwt: "", cf_domain: [], admin_password: "" } : {}),
+      ...(type === "tmail_ddg" ? { ddg_token: "", tmail_auth: "", tmail_backend: "" } : {}),
       ...(type === "outlook_token" ? { mailboxes: "", mode: "graph", imap_host: "outlook.office365.com", message_limit: 10 } : {}),
     });
   };
@@ -185,6 +186,7 @@ export function RegisterCard() {
                             <SelectItem value="gptmail">gptmail(未测试)</SelectItem>
                             <SelectItem value="yyds_mail">yyds_mail</SelectItem>
                             <SelectItem value="ddg_mail">ddg_mail (DDG邮箱+CF中转)</SelectItem>
+                            <SelectItem value="tmail_ddg">tmail_ddg</SelectItem>
                             <SelectItem value="outlook_token">outlook_token (Outlook/Hotmail 邮箱池)</SelectItem>
                           </SelectContent>
                         </Select>
@@ -213,6 +215,22 @@ export function RegisterCard() {
                               <Input value={String(provider.admin_password || "")} onChange={(event) => updateProvider(index, { admin_password: event.target.value })} className="h-10 rounded-xl border-stone-200 bg-white" disabled={config.enabled} />
                             </div>
                           ) : null}
+                        </>
+                      ) : null}
+                      {type === "tmail_ddg" ? (
+                        <>
+                          <div className="space-y-2">
+                            <label className="text-sm text-stone-700">DDG Token <span className="text-red-400">*</span></label>
+                            <Input value={String(provider.ddg_token || "")} onChange={(event) => updateProvider(index, { ddg_token: event.target.value })} className="h-10 rounded-xl border-stone-200 bg-white" disabled={config.enabled} placeholder="DuckDuckGo Email Protection 的 Bearer Token" />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm text-stone-700">Tmail Auth <span className="text-red-400">*</span></label>
+                            <Input value={String(provider.tmail_auth || "")} onChange={(event) => updateProvider(index, { tmail_auth: event.target.value })} className="h-10 rounded-xl border-stone-200 bg-white" disabled={config.enabled} placeholder="Tmail 鉴权信息" />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-sm text-stone-700">Tmail Backend <span className="text-red-400">*</span></label>
+                            <Input value={String(provider.tmail_backend || "")} onChange={(event) => updateProvider(index, { tmail_backend: event.target.value })} className="h-10 rounded-xl border-stone-200 bg-white" disabled={config.enabled} placeholder="Tmail 后端地址" />
+                          </div>
                         </>
                       ) : null}
                       {type === "ddg_mail" ? (
