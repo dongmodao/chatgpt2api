@@ -352,6 +352,22 @@ def _extract_code(message: dict[str, Any]) -> str | None:
     return None
 
 
+def _extract_metadata_code(metadata: Any) -> str | None:
+    if not metadata:
+        return None
+    data: Any = metadata
+    if isinstance(metadata, str):
+        try:
+            data = json.loads(metadata)
+        except Exception as error:
+            print(f"[mail] 解析 metadata 失败: {error}", flush=True)
+            return None
+    if not isinstance(data, dict):
+        return None
+    code = str(data.get("code") or "").strip()
+    return code or None
+
+
 def _message_tracking_ref(message: dict[str, Any]) -> str:
     provider = str(message.get("provider") or "").strip()
     mailbox = str(message.get("mailbox") or "").strip()
@@ -390,6 +406,9 @@ class BaseMailProvider:
                 result = on_message(message)
                 if result is not None:
                     return result
+            else:
+                address = str(mailbox.get("address") or mailbox.get("mailbox") or "").strip()
+                print(f"[mail:{self.name}] 未拉取到最新邮件 address={address or '-'}", flush=True)
             time.sleep(max(0.2, self.conf["wait_interval"]))
         return None
 
@@ -399,20 +418,48 @@ class BaseMailProvider:
             seen_value = []
             mailbox["_seen_code_message_refs"] = seen_value
         seen_refs = {str(item) for item in seen_value}
+        address = str(mailbox.get("address") or mailbox.get("mailbox") or "").strip()
+        print(
+            f"[mail:{self.name}] 开始等待验证码 address={address or '-'} timeout={self.conf['wait_timeout']}s interval={self.conf['wait_interval']}s",
+            flush=True,
+        )
 
         def extract_unseen_code(message: dict[str, Any]) -> str | None:
+            subject = str(message.get("subject") or "")[:80]
+            message_id = str(message.get("message_id") or "")
             if _message_before_code_boundary(mailbox, message):
+                print(f"[mail:{self.name}] 跳过边界前邮件 message_id={message_id or '-'} subject={subject!r}", flush=True)
                 return None
             ref = _message_tracking_ref(message)
             if ref in seen_refs:
+                print(f"[mail:{self.name}] 跳过已处理邮件 ref={ref[:80]} subject={subject!r}", flush=True)
                 return None
+            direct_code = str(message.get("code") or "").strip()
+            if direct_code:
+                seen_value.append(ref)
+                seen_refs.add(ref)
+                print(f"[mail:{self.name}] 从邮件 code 字段直接取得验证码: {direct_code}", flush=True)
+                return direct_code
+            print(
+                f"[mail:{self.name}] code 字段为空，开始从内容提取 message_id={message_id or '-'} subject={subject!r}",
+                flush=True,
+            )
             code = _extract_code(message)
             if code:
                 seen_value.append(ref)
                 seen_refs.add(ref)
+                print(f"[mail:{self.name}] 从邮件内容提取到验证码: {code}", flush=True)
+            else:
+                print(
+                    f"[mail:{self.name}] 邮件内容未提取到验证码 text_len={len(str(message.get('text_content') or ''))} html_len={len(str(message.get('html_content') or ''))}",
+                    flush=True,
+                )
             return code
 
-        return self.wait_for(mailbox, extract_unseen_code)
+        code = self.wait_for(mailbox, extract_unseen_code)
+        if not code:
+            print(f"[mail:{self.name}] 等待验证码超时 address={address or '-'}", flush=True)
+        return code
 
     def close(self) -> None:
         pass
@@ -653,8 +700,14 @@ class TmailDdgProvider(BaseMailProvider):
         if not address:
             raise RuntimeError("TmailDdgProvider 缺少 address")
         data = self._tmail_request("GET", "/api/mails", params={"address": address, "limit": 10, "offset": 0})
-        raw_items = data if isinstance(data, list) else data.get("results") or data.get("data") or [] if isinstance(data, dict) else []
-        messages = [item for item in raw_items if isinstance(item, dict)]
+        if isinstance(data, list):
+            raw_items = data
+        elif isinstance(data, dict):
+            raw_items = data.get("results") or data.get("data") or []
+        else:
+            raw_items = []
+        messages = [item for item in raw_items if isinstance(item, dict)] if isinstance(raw_items, list) else []
+        print(f"[mail:{self.name}] Tmail 拉取邮件 address={address} raw_count={len(raw_items) if isinstance(raw_items, list) else 0} matched_count={len(messages)}", flush=True)
         if not messages:
             return None
         item = messages[0]
@@ -667,6 +720,11 @@ class TmailDdgProvider(BaseMailProvider):
         subject = str(item.get("subject") or "")
         if isinstance(sender, dict):
             sender = sender.get("address") or sender.get("email") or sender.get("name") or ""
+        code = _extract_metadata_code(item.get("metadata"))
+        if code:
+            print(f"[mail:{self.name}] 从 Tmail metadata 提取到验证码: {code}", flush=True)
+        else:
+            print(f"[mail:{self.name}] Tmail metadata 未提供验证码 subject={subject[:80]!r}", flush=True)
         return {
             "provider": self.name,
             "mailbox": address,
@@ -675,6 +733,7 @@ class TmailDdgProvider(BaseMailProvider):
             "sender": str(sender),
             "text_content": text_content,
             "html_content": html_content,
+            "code": code,
             "received_at": _parse_received_at(item.get("date") or item.get("createdAt") or item.get("created_at") or item.get("receivedAt") or item.get("timestamp")),
             "raw": item,
         }
